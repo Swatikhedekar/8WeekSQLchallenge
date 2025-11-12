@@ -171,3 +171,79 @@ group by 1;
  where date_format(s.order_date,'%Y-%m-01')='2021-01-01'
  group by 1 
  order by 1;
+ 
+ ---------------------------------------
+ /* Bonus Questions
+Join All The Things*/
+/*  creating basic data tables that Danny and his team 
+can use to quickly derive insights without needing to join the underlying tables using SQL.
+flag its menber or not on order date
+*/
+select * from sales;
+select * from menu;
+select * from members;
+
+CREATE VIEW customer_orders_view AS
+select s.customer_id, 
+	s.order_date,
+	m.product_name,
+    m.price,
+    case
+		when s.order_date >= m1.join_date
+		then "Y"
+		else "N"
+    end as member
+from 
+	sales s join menu m
+		on s.product_id = m.product_id
+    left join 
+    members m1 
+		on s.customer_id = m1.customer_id;
+        
+-- Rank All The Things
+/*
+Danny also requires further information about the ranking of customer products,
+but he purposely does not need the ranking for non-member purchases so he expects 
+null ranking values for the records when customers are not yet part of the loyalty program.
+*/
+
+WITH purchase_data AS (
+    SELECT 
+        s.customer_id,
+        s.order_date,
+        m.product_name,
+        m.price,
+        mem.join_date,
+        CASE 
+            WHEN s.order_date >= mem.join_date THEN 'Y'
+            ELSE 'N'
+        END AS member
+		FROM sales s
+			JOIN menu m 
+			ON s.product_id = m.product_id
+			LEFT JOIN members mem 
+			ON s.customer_id = mem.customer_id) ,
+		Ranking AS (
+    SELECT
+        customer_id,
+        order_date,
+        product_name,
+        price,
+        member,
+        CASE 
+            WHEN member = 'Y' THEN ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date)
+        END AS Ranking
+    FROM purchase_data
+    WHERE member = 'Y')
+SELECT 
+    p.customer_id,
+    p.order_date,
+    p.product_name,
+    p.price,
+    p.member,
+    mr.Ranking
+FROM purchase_data p
+LEFT JOIN Ranking mr
+    ON p.customer_id = mr.customer_id 
+    AND p.order_date = mr.order_date
+ORDER BY p.customer_id, p.order_date;
